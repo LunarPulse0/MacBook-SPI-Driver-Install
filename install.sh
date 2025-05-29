@@ -3,7 +3,7 @@
 # Clear screen
 clear
 
-# Color definitions
+# Colors
 RED="\033[0;31m"
 GREEN="\033[0;32m"
 YELLOW="\033[1;33m"
@@ -12,7 +12,7 @@ MAGENTA="\033[0;35m"
 CYAN="\033[0;36m"
 RESET="\033[0m"
 
-# Timer utilities
+# Timer functions
 timer_start() { TIMER_START=$(date +%s); }
 timer_end() {
     TIMER_END=$(date +%s)
@@ -20,7 +20,7 @@ timer_end() {
     echo -e "${MAGENTA}⏱️  Duration: ${DIFF}s${RESET}"
 }
 
-# Fake progress bar
+# Progress bar simulation
 progress_bar() {
     echo -ne "${1} ["
     for i in $(seq 1 30); do
@@ -72,7 +72,7 @@ fi
 # Check required tools
 echo -e "\n${BLUE}Checking required tools...${RESET}"
 missing=false
-for cmd in make dkms gcc; do
+for cmd in make dkms gcc sudo; do
     if ! command -v $cmd &>/dev/null; then
         echo -e "${RED}  ✘ $cmd not found${RESET}"
         missing=true
@@ -85,21 +85,21 @@ if [ "$missing" = true ]; then
     exit 1
 fi
 
-# Detect kernel version
+# Detect kernel version and headers path
 KERNEL_VER=$(uname -r)
 HEADER_PATH="/lib/modules/$KERNEL_VER/build"
 echo -e "\n${BLUE}🔍 Checking kernel headers for: $KERNEL_VER${RESET}"
 
-# Try to install if not found
+# Attempt to install headers if missing
 if [ ! -d "$HEADER_PATH" ]; then
     echo -e "${RED}✘ Kernel headers not found for $KERNEL_VER${RESET}"
-    echo -e "${YELLOW}Attempting to install headers with apt...${RESET}"
+    echo -e "${YELLOW}Attempting to install headers via apt...${RESET}"
     sudo apt update
     sudo apt install -y "linux-headers-$KERNEL_VER"
     sleep 2
 fi
 
-# Retry check
+# Recheck headers
 if [ ! -d "$HEADER_PATH" ]; then
     echo -e "${RED}Still missing. Enter kernel version manually (e.g., 6.5.0-17-generic):${RESET}"
     read -p "> " MANUAL_VER
@@ -114,7 +114,17 @@ else
     echo -e "${GREEN}✔ Kernel headers installed${RESET}"
 fi
 
-# Compile
+# Patch applespi.c: comment out asm/unaligned.h include to fix build error
+APPL_SPI_FILE="applespi.c"
+if grep -q "#include <asm/unaligned.h>" "$APPL_SPI_FILE"; then
+    echo -e "${YELLOW}Patching $APPL_SPI_FILE to comment out problematic include...${RESET}"
+    sed -i 's|#include <asm/unaligned.h>|// #include <asm/unaligned.h>|g' "$APPL_SPI_FILE"
+    echo -e "${GREEN}Patch applied.${RESET}"
+else
+    echo -e "${GREEN}No patch needed in $APPL_SPI_FILE.${RESET}"
+fi
+
+# Compile drivers
 echo -e "\n${YELLOW}🔧 Compiling drivers...${RESET}"
 timer_start
 progress_bar "${CYAN}  Building source"
@@ -126,7 +136,7 @@ else
     exit 1
 fi
 
-# DKMS install
+# Install with DKMS
 echo -e "\n${YELLOW}📦 Installing with DKMS...${RESET}"
 timer_start
 progress_bar "${CYAN}  Installing module"
@@ -143,6 +153,6 @@ else
     exit 1
 fi
 
-# Done
+# Finish
 echo -e "\n${GREEN}🎉 MACFIX installation complete!${RESET}"
-echo -e "${YELLOW}🔁 Please reboot to activate the drivers.${RESET}"
+echo -e "${YELLOW}🔁 Please reboot your system to activate the drivers.${RESET}"
