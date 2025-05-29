@@ -56,19 +56,20 @@ cat << "EOF"
 EOF
 echo -e "${RESET}${YELLOW}MACFIX – MacBook Linux Driver Installer${RESET}\n"
 
-# Short intro
+# Intro
 echo -e "${GREEN}This script will compile and install drivers for your MacBook:${RESET}"
 echo -e "${CYAN}- Trackpad\n- Keyboard\n- Ambient Light Sensor${RESET}\n"
-echo -e "${BLUE}All source files detected in current directory.${RESET}\n"
+echo -e "${BLUE}All required source files detected in current directory.${RESET}\n"
 
-# User confirmation
-read -p "$(echo -e ${YELLOW}Ready to install? (y/n): ${RESET})" confirm
+# User confirmation (fixed)
+echo -e "${YELLOW}Ready to install? (y/n): ${RESET}"
+read confirm
 if [[ "$confirm" != "y" ]]; then
     echo -e "${RED}Installation cancelled.${RESET}"
     exit 1
 fi
 
-# Check required tools
+# Check for required tools
 echo -e "\n${BLUE}Checking required tools...${RESET}"
 missing=false
 for cmd in make dkms gcc; do
