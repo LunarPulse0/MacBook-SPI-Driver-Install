@@ -86,11 +86,29 @@ if [ "$missing" = true ]; then
     exit 1
 fi
 
+# Detect kernel version
+KERNEL_VER=$(uname -r)
+echo -e "\n${BLUE}🔍 Checking kernel headers for: $KERNEL_VER${RESET}"
+
+if [ ! -d "/lib/modules/$KERNEL_VER/build" ]; then
+    echo -e "${RED}  ✘ Kernel headers for $KERNEL_VER not found.${RESET}"
+    echo -e "${YELLOW}Enter your kernel version manually (e.g. 6.5.0-17-generic):${RESET}"
+    read -p "> " KERNEL_VER
+    if [ ! -d "/lib/modules/$KERNEL_VER/build" ]; then
+        echo -e "${RED}Still not found. Please install the correct headers and try again.${RESET}"
+        exit 1
+    else
+        echo -e "${GREEN}✔ Found headers for $KERNEL_VER${RESET}"
+    fi
+else
+    echo -e "${GREEN}✔ Kernel headers are installed${RESET}"
+fi
+
 # Compile the drivers
 echo -e "\n${YELLOW}🔧 Compiling drivers...${RESET}"
 timer_start
 progress_bar "${CYAN}  Building source"
-if make; then
+if make -C /lib/modules/$KERNEL_VER/build M=$(pwd) modules; then
     timer_end
     echo -e "${GREEN}✔ Compilation successful${RESET}"
 else
