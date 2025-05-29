@@ -30,7 +30,7 @@ progress_bar() {
     echo -e "] Done!${RESET}"
 }
 
-# Original ASCII art
+# ASCII Art
 echo -e "${CYAN}"
 cat << "EOF"
                            
@@ -61,7 +61,7 @@ echo -e "${GREEN}This script will compile and install drivers for your MacBook:$
 echo -e "${CYAN}- Trackpad\n- Keyboard\n- Ambient Light Sensor${RESET}\n"
 echo -e "${BLUE}All required source files detected in current directory.${RESET}\n"
 
-# User confirmation (fixed)
+# Confirm
 echo -e "${YELLOW}Ready to install? (y/n): ${RESET}"
 read confirm
 if [[ "$confirm" != "y" ]]; then
@@ -69,7 +69,7 @@ if [[ "$confirm" != "y" ]]; then
     exit 1
 fi
 
-# Check for required tools
+# Check required tools
 echo -e "\n${BLUE}Checking required tools...${RESET}"
 missing=false
 for cmd in make dkms gcc; do
@@ -80,7 +80,6 @@ for cmd in make dkms gcc; do
         echo -e "${GREEN}  ✔ $cmd found${RESET}"
     fi
 done
-
 if [ "$missing" = true ]; then
     echo -e "${RED}Please install the missing tools and re-run MACFIX.${RESET}"
     exit 1
@@ -88,35 +87,46 @@ fi
 
 # Detect kernel version
 KERNEL_VER=$(uname -r)
+HEADER_PATH="/lib/modules/$KERNEL_VER/build"
 echo -e "\n${BLUE}🔍 Checking kernel headers for: $KERNEL_VER${RESET}"
 
-if [ ! -d "/lib/modules/$KERNEL_VER/build" ]; then
-    echo -e "${RED}  ✘ Kernel headers for $KERNEL_VER not found.${RESET}"
-    echo -e "${YELLOW}Enter your kernel version manually (e.g. 6.5.0-17-generic):${RESET}"
-    read -p "> " KERNEL_VER
-    if [ ! -d "/lib/modules/$KERNEL_VER/build" ]; then
-        echo -e "${RED}Still not found. Please install the correct headers and try again.${RESET}"
-        exit 1
-    else
-        echo -e "${GREEN}✔ Found headers for $KERNEL_VER${RESET}"
-    fi
-else
-    echo -e "${GREEN}✔ Kernel headers are installed${RESET}"
+# Try to install if not found
+if [ ! -d "$HEADER_PATH" ]; then
+    echo -e "${RED}✘ Kernel headers not found for $KERNEL_VER${RESET}"
+    echo -e "${YELLOW}Attempting to install headers with apt...${RESET}"
+    sudo apt update
+    sudo apt install -y "linux-headers-$KERNEL_VER"
+    sleep 2
 fi
 
-# Compile the drivers
+# Retry check
+if [ ! -d "$HEADER_PATH" ]; then
+    echo -e "${RED}Still missing. Enter kernel version manually (e.g., 6.5.0-17-generic):${RESET}"
+    read -p "> " MANUAL_VER
+    HEADER_PATH="/lib/modules/$MANUAL_VER/build"
+    if [ ! -d "$HEADER_PATH" ]; then
+        echo -e "${RED}✘ Kernel headers not found. Please install manually and try again.${RESET}"
+        exit 1
+    else
+        echo -e "${GREEN}✔ Found headers for $MANUAL_VER${RESET}"
+    fi
+else
+    echo -e "${GREEN}✔ Kernel headers installed${RESET}"
+fi
+
+# Compile
 echo -e "\n${YELLOW}🔧 Compiling drivers...${RESET}"
 timer_start
 progress_bar "${CYAN}  Building source"
-if make -C /lib/modules/$KERNEL_VER/build M=$(pwd) modules; then
+if sudo make -C "$HEADER_PATH" M=$(pwd) modules; then
     timer_end
     echo -e "${GREEN}✔ Compilation successful${RESET}"
 else
-    echo -e "${RED}✘ Build failed. Check the errors above.${RESET}"
+    echo -e "${RED}✘ Build failed. Check errors above.${RESET}"
     exit 1
 fi
 
-# Install via DKMS
+# DKMS install
 echo -e "\n${YELLOW}📦 Installing with DKMS...${RESET}"
 timer_start
 progress_bar "${CYAN}  Installing module"
@@ -133,6 +143,6 @@ else
     exit 1
 fi
 
-# Finish
+# Done
 echo -e "\n${GREEN}🎉 MACFIX installation complete!${RESET}"
-echo -e "${YELLOW}🔁 Reboot your system to enable the drivers.${RESET}"
+echo -e "${YELLOW}🔁 Please reboot to activate the drivers.${RESET}"
